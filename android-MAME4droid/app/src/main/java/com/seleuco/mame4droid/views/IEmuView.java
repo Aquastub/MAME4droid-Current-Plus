@@ -1,7 +1,7 @@
 /*
  * This file is part of MAME4droid.
  *
- * Copyright (C) 2024 David Valdeita (Seleuco)
+ * Copyright (C) 2025 David Valdeita (Seleuco)
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -44,15 +44,49 @@
 
 package com.seleuco.mame4droid.views;
 
+// Imports the main application class.
 import com.seleuco.mame4droid.MAME4droid;
 
+/**
+ * IEmuView defines a contract for any View that is intended to display the emulator's
+ * screen output. By using an interface, the application can easily switch between
+ * different rendering implementations (like OpenGL or a standard SurfaceView)
+ * without changing the core logic that interacts with the view.
+ *
+ * Any class that implements this interface must provide concrete implementations
+ * for all the methods defined below.
+ */
 public interface IEmuView {
 
-    public void setMAME4droid(MAME4droid mm);
+	/**
+	 * Provides the view with a reference to the main application instance.
+	 * This is essential for the view to access global settings, helpers,
+	 * and other core components of the application.
+	 *
+	 * @param mm The main MAME4droid application instance.
+	 */
+	public void setMAME4droid(MAME4droid mm);
 
-    public void setScaleType(int scaleType);
+	/**
+	 * Sets the video scaling mode for the emulator's display.
+	 * For example, this could be used to switch between "Original," "Fit to Screen,"
+	 * or "Stretched."
+	 *
+	 * @param scaleType An integer constant representing the desired scaling mode.
+	 */
+	public void setScaleType(int scaleType);
 
-    public int getScaleType();
+	/**
+	 * Retrieves the currently active scaling mode.
+	 *
+	 * @return An integer constant representing the current scaling mode.
+	 */
+	public int getScaleType();
 
+	/**
+	 * Signals the view to initiate the process of showing the software keyboard (IME).
+	 * The implementing class will contain the logic to actually request the keyboard
+	 * from the Android system.
+	 */
 	public void showSoftKeyboard();
 }

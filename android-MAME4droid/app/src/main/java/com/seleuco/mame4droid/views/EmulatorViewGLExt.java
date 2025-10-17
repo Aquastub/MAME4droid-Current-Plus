@@ -1,7 +1,7 @@
 /*
  * This file is part of MAME4droid.
  *
- * Copyright (C) 2024 David Valdeita (Seleuco)
+ * Copyright (C) 2025 David Valdeita (Seleuco)
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -57,151 +57,194 @@ import com.seleuco.mame4droid.helpers.PrefsHelper;
 import com.seleuco.mame4droid.input.InputHandler;
 import com.seleuco.mame4droid.input.TouchController;
 
+/**
+ * EmulatorViewGLExt extends EmulatorViewGL to add advanced handling of the Android System UI,
+ * such as the navigation bar and status bar. It implements OnSystemUiVisibilityChangeListener
+ * to create an immersive, full-screen experience for the user, hiding system decorations
+ * during gameplay and intelligently showing them when needed.
+ */
 public class EmulatorViewGLExt extends EmulatorViewGL implements android.view.View.OnSystemUiVisibilityChangeListener {
 
-    protected int mLastSystemUiVis;
+	// Stores the last known System UI visibility flags to detect changes.
+	protected int mLastSystemUiVis;
 
-    private boolean volumeChanges = false;
+	// A flag to track if a recent UI visibility change was caused by pressing volume keys.
+	// This prevents certain dialogs from appearing when the user is just adjusting the volume.
+	private boolean volumeChanges = false;
 
-    public void setMAME4droid(MAME4droid mm) {
+	/**
+	 * Overrides the parent method to set up the System UI visibility listener.
+	 * @param mm The main MAME4droid application instance.
+	 */
+	@Override
+	public void setMAME4droid(MAME4droid mm) {
+		if (mm == null) {
+			// Clean up the listener if the context is being destroyed.
+			setOnSystemUiVisibilityChangeListener(null);
+			return;
+		}
+		super.setMAME4droid(mm);
+		// Initially set the navigation visibility state.
+		setNavVisibility(true);
+		// Register this class to listen for changes in the system UI visibility.
+		setOnSystemUiVisibilityChangeListener(this);
+	}
 
-        if (mm == null) {
-            setOnSystemUiVisibilityChangeListener(null);
-            return;
-        }
-        super.setMAME4droid(mm);
-        setNavVisibility(true);
-        setOnSystemUiVisibilityChangeListener(this);
-    }
+	/** Standard View constructor */
+	public EmulatorViewGLExt(Context context, AttributeSet attrs) {
+		super(context, attrs);
+	}
 
-    public EmulatorViewGLExt(Context context, AttributeSet attrs) {
-        super(context, attrs);
-    }
+	/**
+	 * A Runnable that, when executed, hides the system navigation bar.
+	 * It is posted with a delay to automatically re-hide the UI after it has been shown.
+	 */
+	Runnable mNavHider = new Runnable() {
+		@Override
+		public void run() {
+			// Reset the volume change flag when hiding the nav bar.
+			volumeChanges = false;
+			setNavVisibility(false);
+		}
+	};
 
-    Runnable mNavHider = new Runnable() {
-        @Override
-        public void run() {
-            volumeChanges = false;
-            setNavVisibility(false);
-        }
-    };
+	/**
+	 * Called when the visibility of the window containing this view changes.
+	 */
+	@Override
+	protected void onWindowVisibilityChanged(int visibility) {
+		super.onWindowVisibilityChanged(visibility);
 
-    @Override
-    protected void onWindowVisibilityChanged(int visibility) {
-        super.onWindowVisibilityChanged(visibility);
+		if (mm == null) return;
 
-        System.out.println("onWindowVisibilityChanged");
+		// When the view becomes visible, briefly show navigation elements and then schedule them to be hidden.
+		// This gives the user a chance to interact with the system UI before entering immersive mode.
+		if (mm.getPrefsHelper().getNavBarMode() == PrefsHelper.PREF_NAVBAR_IMMERSIVE) {
+			setNavVisibility(false); // In immersive mode, hide immediately.
+		} else {
+			// In other modes, hide after a 3-second delay.
+			getHandler().postDelayed(mNavHider, 3000);
+		}
+	}
 
-        // When we become visible, we show our navigation elements briefly
-        // before hiding them.
-        if (mm == null)
-            return;
-        if (mm.getPrefsHelper().getNavBarMode() == PrefsHelper.PREF_NAVBAR_IMMERSIVE) {
-            setNavVisibility(false);
-            //getHandler().postDelayed(mNavHider, 2000);
-        } else
-            getHandler().postDelayed(mNavHider, 3000);
-    }
+	/**
+	 * This is the callback that fires when the system UI visibility changes
+	 * (e.g., when the navigation bar appears or disappears).
+	 */
+	@Override
+	public void onSystemUiVisibilityChange(int visibility) {
+		// Calculate which visibility flags have changed since the last update.
+		int diff = mLastSystemUiVis ^ visibility;
+		mLastSystemUiVis = visibility;
 
-    @Override
-    public void onSystemUiVisibilityChange(int visibility) {
-        // Detect when we go out of low-profile mode, to also go out
-        // of full screen.  We only do this when the low profile mode
-        // is changing from its last state, and turning off.
+		// Check if the navigation bar was previously hidden and is now visible.
+		if ((diff & SYSTEM_UI_FLAG_HIDE_NAVIGATION) != 0
+			&& (visibility & SYSTEM_UI_FLAG_HIDE_NAVIGATION) == 0) {
+			// Make sure the UI is in a consistent "visible" state.
+			setNavVisibility(true);
 
-        System.out.println("onSystemUiVisibilityChange");
-        if ((visibility & SYSTEM_UI_FLAG_HIDE_NAVIGATION) == SYSTEM_UI_FLAG_HIDE_NAVIGATION)
-            System.out.println("SYSTEM_UI_FLAG_HIDE_NAVIGATION");
-        else
-            System.out.println("NO SYSTEM_UI_FLAG_HIDE_NAVIGATION");
-        if ((visibility & SYSTEM_UI_FLAG_FULLSCREEN) == SYSTEM_UI_FLAG_FULLSCREEN)
-            System.out.println("SYSTEM_UI_FLAG_FULLSCREEN");
-        else
-            System.out.println("NO SYSTEM_UI_FLAG_FULLSCREEN");
+			// If no dialogs are open, not in immersive mode, and the change wasn't from a volume press,
+			// prompt the user to re-enter fullscreen.
+			if (DialogHelper.savedDialog == DialogHelper.DIALOG_NONE &&
+				mm.getPrefsHelper().getNavBarMode() != PrefsHelper.PREF_NAVBAR_IMMERSIVE &&
+				!volumeChanges) {
+				mm.showDialog(DialogHelper.DIALOG_FULLSCREEN);
+			}
+			// Also handle the older "low profile" mode change for older Android versions.
+		} else if ((diff & SYSTEM_UI_FLAG_LOW_PROFILE) != 0
+			&& (visibility & SYSTEM_UI_FLAG_LOW_PROFILE) == 0) {
+			setNavVisibility(true);
+		}
+	}
 
+	/**
+	 * The core method that sets the desired system UI visibility flags.
+	 * @param visible True to show the navigation bar, false to hide it.
+	 */
+	void setNavVisibility(boolean visible) {
+		if (mm == null) return;
 
-        int diff = mLastSystemUiVis ^ visibility;
-        mLastSystemUiVis = visibility;
+		int newVis;
+		// Check if the on-screen controls are hidden, which implies a more "full-screen" intent.
+		boolean full = mm.getInputHandler().getTouchController().getState() == TouchController.STATE_SHOWING_NONE;
 
-        if ((diff & SYSTEM_UI_FLAG_HIDE_NAVIGATION) != 0
-                && (visibility & SYSTEM_UI_FLAG_HIDE_NAVIGATION) == 0) {
-            setNavVisibility(true);
+		// Start with base flags that allow the layout to extend behind the system bars.
+		if (full || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT && mm.getPrefsHelper().getNavBarMode() == PrefsHelper.PREF_NAVBAR_IMMERSIVE)) {
+			newVis = SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+				| SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+				| SYSTEM_UI_FLAG_LAYOUT_STABLE;
+		} else {
+			newVis = SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+				| SYSTEM_UI_FLAG_LAYOUT_STABLE;
+		}
 
-            if (DialogHelper.savedDialog == DialogHelper.DIALOG_NONE && mm.getPrefsHelper().getNavBarMode() != PrefsHelper.PREF_NAVBAR_IMMERSIVE && !volumeChanges)
-                mm.showDialog(DialogHelper.DIALOG_FULLSCREEN);
-        } else if ((diff & SYSTEM_UI_FLAG_LOW_PROFILE) != 0
-                && (visibility & SYSTEM_UI_FLAG_LOW_PROFILE) == 0) {
-            setNavVisibility(true);
-        }
+		if (!visible) {
+			// If hiding, add the necessary flags.
+			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT && mm.getPrefsHelper().getNavBarMode() == PrefsHelper.PREF_NAVBAR_IMMERSIVE) {
+				// Use the modern "immersive sticky" mode on Android 4.4+
+				newVis |= View.SYSTEM_UI_FLAG_HIDE_NAVIGATION // hide nav bar
+					| View.SYSTEM_UI_FLAG_FULLSCREEN // hide status bar
+					| View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY; // system bars reappear with a swipe and are semi-transparent
+			} else if (full) {
+				// On older systems, use a combination of flags to hide everything.
+				newVis |= SYSTEM_UI_FLAG_LOW_PROFILE | SYSTEM_UI_FLAG_FULLSCREEN | SYSTEM_UI_FLAG_HIDE_NAVIGATION;
+			} else {
+				// If on-screen controls are visible, just hide the status bar and dim the nav bar.
+				newVis |= SYSTEM_UI_FLAG_LOW_PROFILE | SYSTEM_UI_FLAG_FULLSCREEN;
+			}
+		}
 
-    }
+		// If we are making the UI visible, schedule it to become invisible again after a delay.
+		if (visible) {
+			Handler h = getHandler();
+			if (h != null) {
+				h.removeCallbacks(mNavHider); // Remove any pending hide requests.
+				// Schedule a new hide request. The delay is shorter in immersive mode.
+				h.postDelayed(mNavHider, mm.getPrefsHelper().getNavBarMode() == PrefsHelper.PREF_NAVBAR_IMMERSIVE ? 1000 : 3000);
+			}
+		}
 
-    void setNavVisibility(boolean visible) {
-        if (mm == null) return;
-        int newVis = 0;
-        boolean full = mm.getInputHandler().getTouchController().getState() == TouchController.STATE_SHOWING_NONE;
+		// Apply the newly calculated visibility flags to the view.
+		setSystemUiVisibility(newVis);
+	}
 
-        if (full || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT && mm.getPrefsHelper().getNavBarMode() == PrefsHelper.PREF_NAVBAR_IMMERSIVE)) {
-            newVis = SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                    | SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                    | SYSTEM_UI_FLAG_LAYOUT_STABLE;
-        } else {
-            newVis = SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                    | SYSTEM_UI_FLAG_LAYOUT_STABLE;
-        }
+	/**
+	 * Intercepts key events to detect volume button presses.
+	 */
+	@Override
+	public boolean dispatchKeyEvent(KeyEvent event) {
+		// Check if the volume up or down key was pressed.
+		if (event.getKeyCode() == KeyEvent.KEYCODE_VOLUME_DOWN || event.getKeyCode() == KeyEvent.KEYCODE_VOLUME_UP) {
+			// Set a flag to indicate the UI change was likely due to a volume adjustment.
+			volumeChanges = true;
 
-        if (!visible) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT && mm.getPrefsHelper().getNavBarMode() == PrefsHelper.PREF_NAVBAR_IMMERSIVE) {
-                newVis |= View.SYSTEM_UI_FLAG_HIDE_NAVIGATION // hide nav bar
-                        | View.SYSTEM_UI_FLAG_FULLSCREEN // hide status bar
-                        | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY;
-            } else if (full) {
-                newVis |= SYSTEM_UI_FLAG_LOW_PROFILE | SYSTEM_UI_FLAG_FULLSCREEN
-                        | SYSTEM_UI_FLAG_HIDE_NAVIGATION;
-            } else {
-                newVis |= SYSTEM_UI_FLAG_LOW_PROFILE | SYSTEM_UI_FLAG_FULLSCREEN;
-            }
-        }
+			// When volume is changed, the system UI appears. We want to extend the timer
+			// for re-hiding it to give the user time to see the volume level.
+			Handler h = getHandler();
+			if (h != null) {
+				h.removeCallbacks(mNavHider);
+				h.postDelayed(mNavHider, 4000);
+			}
+		}
+		return super.dispatchKeyEvent(event);
+	}
 
-        // If we are now visible, schedule a timer for us to go invisible.
-        if (visible) {
-            Handler h = getHandler();
-            if (h != null) {
-                h.removeCallbacks(mNavHider);
-                h.postDelayed(mNavHider, mm.getPrefsHelper().getNavBarMode() == PrefsHelper.PREF_NAVBAR_IMMERSIVE ? 1000 : 3000);
-            }
-        }
-
-        // Set the new desired visibility.
-        setSystemUiVisibility(newVis);
-    }
-
-    @Override
-    public boolean dispatchKeyEvent(KeyEvent event) {
-        if (event.getKeyCode() == KeyEvent.KEYCODE_VOLUME_DOWN || event.getKeyCode() == KeyEvent.KEYCODE_VOLUME_UP) {
-            volumeChanges = true;
-
-            Handler h = getHandler();
-            if (h != null) {
-                h.removeCallbacks(mNavHider);
-                h.postDelayed(mNavHider, 4000);
-            }
-        }
-        return super.dispatchKeyEvent(event);
-    }
-
-    @Override
-    public void onWindowFocusChanged(boolean hasWindowFocus) {
-
-        //System.out.println("onWindowFocusChanged:"+hasWindowFocus);
-        if (hasWindowFocus)
-            if (mm.getPrefsHelper().getNavBarMode() == PrefsHelper.PREF_NAVBAR_IMMERSIVE) {
-                setNavVisibility(false);
-                //getHandler().postDelayed(mNavHider, 2000);
-            } else
-                getHandler().postDelayed(mNavHider, 3000);
-
-        super.onWindowFocusChanged(hasWindowFocus);
-    }
-
+	/**
+	 * Called when the window containing this view gains or loses focus.
+	 */
+	@Override
+	public void onWindowFocusChanged(boolean hasWindowFocus) {
+		if (hasWindowFocus) {
+			// When the app regains focus (e.g., after switching apps),
+			// ensure we re-enter our immersive state by scheduling the nav bar to hide.
+			if (mm.getPrefsHelper().getNavBarMode() == PrefsHelper.PREF_NAVBAR_IMMERSIVE) {
+				setNavVisibility(false);
+			} else {
+				getHandler().postDelayed(mNavHider, 3000);
+			}
+		}
+		// It is CRITICAL to call the super method, as it contains the logic
+		// for showing the soft keyboard from the parent class.
+		super.onWindowFocusChanged(hasWindowFocus);
+	}
 }

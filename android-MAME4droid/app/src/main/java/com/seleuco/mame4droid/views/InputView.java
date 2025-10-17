@@ -1,7 +1,7 @@
 /*
  * This file is part of MAME4droid.
  *
- * Copyright (C) 2024 David Valdeita (Seleuco)
+ * Copyright (C) 2025 David Valdeita (Seleuco)
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -69,310 +69,329 @@ import com.seleuco.mame4droid.input.InputValue;
 import com.seleuco.mame4droid.input.TiltSensor;
 import com.seleuco.mame4droid.input.TouchController;
 
+/**
+ * InputView is a custom View responsible for rendering the on-screen virtual controller
+ * (D-pad, buttons, etc.) and displaying their current state (e.g., pressed or unpressed).
+ * It extends ImageView to potentially support a background image for the controller area.
+ */
 public class InputView extends ImageView {
 
-    protected MAME4droid mm = null;
-    protected Bitmap bmp = null;
-    protected Paint pnt = new Paint();
-    protected Rect rsrc = new Rect();
-    protected Rect rdst = new Rect();
-    protected Rect rclip = new Rect();
-    protected int ax = 0;
-    protected int ay = 0;
-    protected float dx = 1;
-    protected float dy = 1;
+	// A reference to the main application class for accessing global helpers and state.
+	protected MAME4droid mm = null;
+	// The background bitmap for the view, if any.
+	protected Bitmap bmp = null;
+	// A reusable Paint object for drawing operations (e.g., debug borders).
+	protected Paint pnt = new Paint();
+	// Reusable Rect objects to avoid memory allocation during drawing.
+	protected Rect rsrc = new Rect();
+	protected Rect rdst = new Rect();
+	protected Rect rclip = new Rect();
+	// Offset for positioning the controls within the view (for centering/letterboxing).
+	protected int ax = 0;
+	protected int ay = 0;
+	// Scaling factors to map the abstract controller layout to the actual screen pixels.
+	protected float dx = 1;
+	protected float dy = 1;
 
-    static BitmapDrawable stick_images[] = null;
-    static BitmapDrawable btns_images[][] = null;
+	// Static arrays to hold drawable resources for the stick and buttons.
+	// 'static' is used as an optimization so these images are loaded only ONCE for the
+	// entire application lifecycle, not every time a new game is started.
+	static BitmapDrawable stick_images[] = null;
+	static BitmapDrawable btns_images[][] = null;
 
-    public void setMAME4droid(MAME4droid mm) {
-        this.mm = mm;
-        if (mm == null) return;
+	/**
+	 * Sets the main application context and initializes the view's resources.
+	 * This is the primary setup method for the view.
+	 * @param mm The main MAME4droid application instance.
+	 */
+	public void setMAME4droid(MAME4droid mm) {
+		this.mm = mm;
+		if (mm == null) return;
 
-        if (stick_images == null) {
-            stick_images = new BitmapDrawable[9];
-            stick_images[IController.STICK_DOWN] = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.dpad_down);
-            stick_images[IController.STICK_DOWN_LEFT] = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.dpad_down_left);
-            stick_images[IController.STICK_DOWN_RIGHT] = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.dpad_down_right);
-            stick_images[IController.STICK_LEFT] = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.dpad_left);
-            stick_images[IController.STICK_NONE] = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.dpad_none);
-            stick_images[IController.STICK_RIGHT] = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.dpad_right);
-            stick_images[IController.STICK_UP] = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.dpad_up);
-            stick_images[IController.STICK_UP_LEFT] = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.dpad_up_left);
-            stick_images[IController.STICK_UP_RIGHT] = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.dpad_up_right);
-        }
+		// Lazily initialize the stick images. This block runs only once.
+		if (stick_images == null) {
+			stick_images = new BitmapDrawable[9]; // 8 directions + neutral
+			stick_images[IController.STICK_DOWN] = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.dpad_down);
+			stick_images[IController.STICK_DOWN_LEFT] = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.dpad_down_left);
+			stick_images[IController.STICK_DOWN_RIGHT] = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.dpad_down_right);
+			stick_images[IController.STICK_LEFT] = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.dpad_left);
+			stick_images[IController.STICK_NONE] = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.dpad_none);
+			stick_images[IController.STICK_RIGHT] = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.dpad_right);
+			stick_images[IController.STICK_UP] = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.dpad_up);
+			stick_images[IController.STICK_UP_LEFT] = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.dpad_up_left);
+			stick_images[IController.STICK_UP_RIGHT] = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.dpad_up_right);
+		}
 
-        if (btns_images == null) {
-            btns_images = new BitmapDrawable[IController.NUM_BUTTONS][2];
+		// Lazily initialize the button images. This block also runs only once.
+		if (btns_images == null) {
+			btns_images = new BitmapDrawable[IController.NUM_BUTTONS][2]; // For each button, 2 states: pressed and not pressed.
 
-            btns_images[IController.BTN_A][IController.BTN_NO_PRESS_STATE]
-                    = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.button_a);
-            btns_images[IController.BTN_A][IController.BTN_PRESS_STATE]
-                    = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.button_a_press);
+			// Load drawables for button A (normal and pressed states)
+			btns_images[IController.BTN_A][IController.BTN_NO_PRESS_STATE] = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.button_a);
+			btns_images[IController.BTN_A][IController.BTN_PRESS_STATE] = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.button_a_press);
 
-            btns_images[IController.BTN_B][IController.BTN_NO_PRESS_STATE]
-                    = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.button_b);
-            btns_images[IController.BTN_B][IController.BTN_PRESS_STATE]
-                    = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.button_b_press);
+			// ... and so on for all other buttons (B, C, D, E, F, G, H, Exit, Option, Start, Coin) ...
+			btns_images[IController.BTN_B][IController.BTN_NO_PRESS_STATE] = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.button_b);
+			btns_images[IController.BTN_B][IController.BTN_PRESS_STATE] = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.button_b_press);
+			btns_images[IController.BTN_C][IController.BTN_NO_PRESS_STATE] = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.button_c);
+			btns_images[IController.BTN_C][IController.BTN_PRESS_STATE] = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.button_c_press);
+			btns_images[IController.BTN_D][IController.BTN_NO_PRESS_STATE] = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.button_d);
+			btns_images[IController.BTN_D][IController.BTN_PRESS_STATE] = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.button_d_press);
+			btns_images[IController.BTN_E][IController.BTN_NO_PRESS_STATE] = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.button_e);
+			btns_images[IController.BTN_E][IController.BTN_PRESS_STATE] = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.button_e_press);
+			btns_images[IController.BTN_F][IController.BTN_NO_PRESS_STATE] = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.button_f);
+			btns_images[IController.BTN_F][IController.BTN_PRESS_STATE] = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.button_f_press);
+			btns_images[IController.BTN_G][IController.BTN_NO_PRESS_STATE] = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.button_g);
+			btns_images[IController.BTN_G][IController.BTN_PRESS_STATE] = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.button_g_press);
+			btns_images[IController.BTN_H][IController.BTN_NO_PRESS_STATE] = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.button_h);
+			btns_images[IController.BTN_H][IController.BTN_PRESS_STATE] = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.button_h_press);
+			btns_images[IController.BTN_EXIT][IController.BTN_NO_PRESS_STATE] = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.button_exit);
+			btns_images[IController.BTN_EXIT][IController.BTN_PRESS_STATE] = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.button_exit_press);
+			btns_images[IController.BTN_OPTION][IController.BTN_NO_PRESS_STATE] = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.button_option);
+			btns_images[IController.BTN_OPTION][IController.BTN_PRESS_STATE] = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.button_option_press);
+			btns_images[IController.BTN_START][IController.BTN_NO_PRESS_STATE] = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.button_start);
+			btns_images[IController.BTN_START][IController.BTN_PRESS_STATE] = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.button_start_press);
+			btns_images[IController.BTN_COIN][IController.BTN_NO_PRESS_STATE] = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.button_coin);
+			btns_images[IController.BTN_COIN][IController.BTN_PRESS_STATE] = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.button_coin_press);
+		}
+	}
 
-            btns_images[IController.BTN_C][IController.BTN_NO_PRESS_STATE]
-                    = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.button_c);
-            btns_images[IController.BTN_C][IController.BTN_PRESS_STATE]
-                    = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.button_c_press);
+	/** Standard View constructor */
+	public InputView(Context context) {
+		super(context);
+		init();
+	}
 
-            btns_images[IController.BTN_D][IController.BTN_NO_PRESS_STATE]
-                    = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.button_d);
-            btns_images[IController.BTN_D][IController.BTN_PRESS_STATE]
-                    = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.button_d_press);
+	/** Standard View constructor called when inflating from XML */
+	public InputView(Context context, AttributeSet attrs) {
+		super(context, attrs);
+		init();
+	}
 
-            btns_images[IController.BTN_E][IController.BTN_NO_PRESS_STATE]
-                    = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.button_e);
-            btns_images[IController.BTN_E][IController.BTN_PRESS_STATE]
-                    = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.button_e_press);
+	/** Standard View constructor */
+	public InputView(Context context, AttributeSet attrs, int defStyle) {
+		super(context, attrs, defStyle);
+		init();
+	}
 
-            btns_images[IController.BTN_F][IController.BTN_NO_PRESS_STATE]
-                    = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.button_f);
-            btns_images[IController.BTN_F][IController.BTN_PRESS_STATE]
-                    = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.button_f_press);
+	/**
+	 * Performs basic initialization for the view.
+	 */
+	protected void init() {
+		// Configure the Paint object for drawing debug outlines.
+		pnt.setARGB(255, 255, 255, 255);
+		pnt.setStyle(Style.STROKE);
+		pnt.setTextSize(16);
 
-			btns_images[IController.BTN_G][IController.BTN_NO_PRESS_STATE]
-				= (BitmapDrawable) mm.getResources().getDrawable(R.drawable.button_g);
-			btns_images[IController.BTN_G][IController.BTN_PRESS_STATE]
-				= (BitmapDrawable) mm.getResources().getDrawable(R.drawable.button_g_press);
+		// Make the view focusable to potentially receive key events.
+		this.setFocusable(true);
+		this.setFocusableInTouchMode(true);
+	}
 
-			btns_images[IController.BTN_H][IController.BTN_NO_PRESS_STATE]
-				= (BitmapDrawable) mm.getResources().getDrawable(R.drawable.button_h);
-			btns_images[IController.BTN_H][IController.BTN_PRESS_STATE]
-				= (BitmapDrawable) mm.getResources().getDrawable(R.drawable.button_h_press);
+	/**
+	 * Overrides the default method to get a reference to the underlying Bitmap
+	 * if a background drawable is set.
+	 */
+	@Override
+	public void setImageDrawable(Drawable drawable) {
+		if (drawable != null) {
+			bmp = ((BitmapDrawable) drawable).getBitmap();
+		} else {
+			bmp = null;
+		}
+		super.setImageDrawable(drawable);
+	}
 
-            btns_images[IController.BTN_EXIT][IController.BTN_NO_PRESS_STATE]
-                    = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.button_exit);
-            btns_images[IController.BTN_EXIT][IController.BTN_PRESS_STATE]
-                    = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.button_exit_press);
+	/**
+	 * Calculates the dimensions of the view, ensuring the aspect ratio of the
+	 * controller layout is maintained.
+	 */
+	@Override
+	protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+		if (mm == null) {
+			super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+			return;
+		}
 
-            btns_images[IController.BTN_OPTION][IController.BTN_NO_PRESS_STATE]
-                    = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.button_option);
-            btns_images[IController.BTN_OPTION][IController.BTN_PRESS_STATE]
-                    = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.button_option_press);
+		int widthSize;
+		int heightSize;
 
-            btns_images[IController.BTN_START][IController.BTN_NO_PRESS_STATE]
-                    = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.button_start);
-            btns_images[IController.BTN_START][IController.BTN_PRESS_STATE]
-                    = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.button_start_press);
+		// In landscape, the view typically takes up the full screen height and a portion of the width.
+		if (mm.getMainHelper().getscrOrientation() == Configuration.ORIENTATION_LANDSCAPE) {
+			widthSize = MeasureSpec.getSize(widthMeasureSpec);
+			heightSize = MeasureSpec.getSize(heightMeasureSpec);
+		} else { // In portrait, the controls are usually in a box below the game screen.
+			// Get the 'native' size of the controller layout.
+			int w = 1;
+			int h = 1;
+			if (mm.getInputHandler().getTouchController().getMainRect() != null) {
+				w = mm.getInputHandler().getTouchController().getMainRect().width();
+				h = mm.getInputHandler().getTouchController().getMainRect().height();
+			}
+			if (w == 0) w = 1;
+			if (h == 0) h = 1;
 
-            btns_images[IController.BTN_COIN][IController.BTN_NO_PRESS_STATE]
-                    = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.button_coin);
-            btns_images[IController.BTN_COIN][IController.BTN_PRESS_STATE]
-                    = (BitmapDrawable) mm.getResources().getDrawable(R.drawable.button_coin_press);
-        }
-    }
+			// Calculate height based on width to maintain the aspect ratio.
+			float desiredAspect = (float) w / (float) h;
+			widthSize = mm.getWindowManager().getDefaultDisplay().getWidth();
+			heightSize = (int) (widthSize / desiredAspect);
+		}
 
-    public InputView(Context context) {
-        super(context);
-        init();
-    }
+		// Set the final calculated dimensions for this view.
+		setMeasuredDimension(widthSize, heightSize);
+	}
 
-    public InputView(Context context, AttributeSet attrs) {
-        super(context, attrs);
-        init();
-    }
+	/**
+	 * Prepares all the drawable images by setting their size, position (bounds), and
+	 * transparency (alpha) based on the current layout configuration.
+	 */
+	public void updateImages() {
+		if (mm == null) return;
+		ArrayList<InputValue> data = mm.getInputHandler().getTouchController().getAllInputData();
+		if (data == null) return;
 
-    public InputView(Context context, AttributeSet attrs, int defStyle) {
-        super(context, attrs, defStyle);
-        init();
-    }
+		int controllerAlpha = mm.getMainHelper().getControllerAlpha();
 
-    protected void init() {
-        pnt.setARGB(255, 255, 255, 255);
-        //p.setTextSize(25);
-        pnt.setStyle(Style.STROKE);
+		// Loop through every defined input element (stick, buttons).
+		for (InputValue v : data) {
+			if (v.getType() == TouchController.TYPE_STICK_IMG) {
+				// Set the bounds and alpha for all 9 stick direction images.
+				for (BitmapDrawable stick_image : stick_images) {
+					stick_image.setBounds(v.getRect());
+					stick_image.setAlpha(controllerAlpha);
+				}
+			} else if (v.getType() == TouchController.TYPE_BUTTON_IMG) {
+				// Set the bounds and alpha for both the pressed and unpressed states of this button.
+				btns_images[v.getValue()][IController.BTN_PRESS_STATE].setBounds(v.getRect());
+				btns_images[v.getValue()][IController.BTN_PRESS_STATE].setAlpha(controllerAlpha);
+				btns_images[v.getValue()][IController.BTN_NO_PRESS_STATE].setBounds(v.getRect());
+				btns_images[v.getValue()][IController.BTN_NO_PRESS_STATE].setAlpha(controllerAlpha);
+			}
+		}
+	}
 
-        pnt.setARGB(255, 255, 255, 255);
-        pnt.setTextSize(16);
+	/**
+	 * Called when the size of this view has changed. This is where we calculate the
+	 * final scaling factors and offsets needed to draw the controls correctly.
+	 */
+	@Override
+	protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+		super.onSizeChanged(w, h, oldw, oldh);
 
-        this.setFocusable(true);
-        this.setFocusableInTouchMode(true);
-    }
+		// Get the 'native' size of the controller layout from the TouchController.
+		int bw = 1;
+		int bh = 1;
+		if (mm != null && mm.getInputHandler().getTouchController().getMainRect() != null) {
+			bw = mm.getInputHandler().getTouchController().getMainRect().width();
+			bh = mm.getInputHandler().getTouchController().getMainRect().height();
+		}
+		if (bw == 0) bw = 1;
+		if (bh == 0) bh = 1;
 
-    @Override
-    public void setImageDrawable(Drawable drawable) {
-        if (drawable != null) {
-            BitmapDrawable bmpdrw = (BitmapDrawable) drawable;
-            bmp = bmpdrw.getBitmap();
-        } else {
-            bmp = null;
-        }
+		// Calculate the aspect ratio of the controller layout.
+		float desiredAspect = (float) bw / (float) bh;
 
-        super.setImageDrawable(drawable);
-    }
+		// Fit the layout within the view's new dimensions (w, h), preserving the aspect ratio.
+		// This calculates letterboxing/pillarboxing offsets (ax, ay).
+		int tmp = (int) ((float) w / desiredAspect);
+		if (tmp <= h) { // Letterbox (space on top/bottom)
+			ax = 0;
+			ay = (h - tmp) / 2;
+			h = tmp;
+		} else { // Pillarbox (space on left/right)
+			tmp = (int) ((float) h * desiredAspect);
+			ay = 0;
+			ax = (w - tmp) / 2;
+			w = tmp;
+		}
 
-    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+		// Calculate the final scaling factors.
+		dx = (float) w / (float) bw;
+		dy = (float) h / (float) bh;
 
-        if (mm == null) {
-            super.onMeasure(widthMeasureSpec, heightMeasureSpec);
-            return;
-        }
+		if (mm == null || mm.getInputHandler() == null) return;
 
-        int widthSize = 1;
-        int heightSize = 1;
+		// Inform the TouchController about the transformation factors so it can correctly
+		// map screen touch coordinates to virtual controller coordinates.
+		mm.getInputHandler().getTouchController().setFixFactor(ax, ay, dx, dy);
 
-        if (mm.getMainHelper().getscrOrientation() == Configuration.ORIENTATION_LANDSCAPE) {
+		// Now that sizes and positions are known, update the drawables.
+		updateImages();
+	}
 
-            /*if(!mm.getPrefsHelper().isNotchUsed())
-            {
-                widthSize = mm.getWindowManager().getDefaultDisplay().getWidth();
-                heightSize = mm.getWindowManager().getDefaultDisplay().getHeight();
-            }
-            else {*/
-                widthSize = MeasureSpec.getSize(widthMeasureSpec);
-                heightSize = MeasureSpec.getSize(heightMeasureSpec);
-            //}
+	/**
+	 * The main drawing method. This is called by the Android system whenever the
+	 * view needs to be redrawn.
+	 */
+	@Override
+	protected void onDraw(Canvas canvas) {
+		// Draw the optional background image first.
+		if (bmp != null) {
+			super.onDraw(canvas);
+		}
 
-        } else {
-            int w = 1;//320;
-            int h = 1;//240;
+		if (mm == null) return;
 
-            if (mm != null && mm.getInputHandler().getTouchController().getMainRect() != null) {
-                w = mm.getInputHandler().getTouchController().getMainRect().width();
-                h = mm.getInputHandler().getTouchController().getMainRect().height();
-            }
+		ArrayList<InputValue> data = mm.getInputHandler().getTouchController().getAllInputData();
+		if (data == null) return;
 
-            if (w == 0) w = 1;
-            if (h == 0) h = 1;
+		// Iterate through all configured input elements.
+		for (InputValue v : data) {
+			BitmapDrawable d = null;
+			canvas.getClipBounds(rclip); // Get the visible area of the canvas.
 
-            float desiredAspect = (float) w / (float) h;
+			// Check if this specific control is configured to be visible.
+			if (!mm.getInputHandler().getTouchController().isHandledTouchItem(v)) {
+				continue;
+			}
 
-            widthSize = mm.getWindowManager().getDefaultDisplay().getWidth();
-            heightSize = (int) (widthSize / desiredAspect);
-        }
+			// Optimization: only process elements that are within the visible area.
+			if (v.getRect() != null && rclip.intersect(v.getRect())) {
+				if (v.getType() == TouchController.TYPE_STICK_IMG) {
+					// Select the correct stick image based on the current input state.
+					d = stick_images[mm.getInputHandler().getTouchController().getStick_state()];
+				} else if (v.getType() == TouchController.TYPE_ANALOG_RECT) {
+					// If it's an analog stick, delegate drawing to its own class.
+					mm.getInputHandler().getTouchStick().draw(canvas);
+				} else if (v.getType() == TouchController.TYPE_BUTTON_IMG) {
+					// Select the correct button image (pressed or unpressed).
+					d = btns_images[v.getValue()][mm.getInputHandler().getTouchController().getBtnStates()[v.getValue()]];
+				}
+			}
 
-        setMeasuredDimension(widthSize, heightSize);
-    }
+			// If a drawable was selected, draw it.
+			if (d != null) {
+				d.draw(canvas);
+			}
+		}
 
-    public void updateImages() {
-        ArrayList<InputValue> data = mm.getInputHandler().getTouchController().getAllInputData();
+		// If the control customizer is active, draw its overlay on top.
+		if (ControlCustomizer.isEnabled()) {
+			mm.getInputHandler().getControlCustomizer().draw(canvas);
+		}
 
-        if (data == null) return;
+		// If in debug mode, draw outlines of the touchable areas.
+		if (Emulator.isDebug()) {
+			ArrayList<InputValue> ids = mm.getInputHandler().getTouchController().getAllInputData();
+			Paint p2 = new Paint();
+			p2.setARGB(255, 255, 255, 255);
+			p2.setStyle(Style.STROKE);
 
-        for (int i = 0; i < data.size(); i++) {
-            InputValue v = data.get(i);
-            if (v.getType() == TouchController.TYPE_STICK_IMG) {
+			for (InputValue v : ids) {
+				Rect r = v.getRect();
+				if (r != null) {
+					// Draw rectangles for buttons and the currently active stick type.
+					if (v.getType() == TouchController.TYPE_BUTTON_RECT) canvas.drawRect(r, p2);
+					else if (mm.getPrefsHelper().getControllerType() == PrefsHelper.PREF_DIGITAL_DPAD && v.getType() == TouchController.TYPE_STICK_RECT) canvas.drawRect(r, p2);
+					else if (mm.getPrefsHelper().getControllerType() != PrefsHelper.PREF_DIGITAL_DPAD && v.getType() == TouchController.TYPE_ANALOG_RECT) canvas.drawRect(r, p2);
+				}
+			}
 
-                for (int j = 0; j < stick_images.length; j++) {
-                    stick_images[j].setBounds(v.getRect());
-                    stick_images[j].setAlpha(mm.getMainHelper().getControllerAlpha());
-                }
-            } else if (v.getType() == TouchController.TYPE_BUTTON_IMG) {
-                btns_images[v.getValue()][IController.BTN_PRESS_STATE].setBounds(v.getRect());
-                btns_images[v.getValue()][IController.BTN_PRESS_STATE].setAlpha(mm.getMainHelper().getControllerAlpha());
-                btns_images[v.getValue()][IController.BTN_NO_PRESS_STATE].setBounds(v.getRect());
-                btns_images[v.getValue()][IController.BTN_NO_PRESS_STATE].setAlpha(mm.getMainHelper().getControllerAlpha());
-            }
-        }
-    }
-
-    @Override
-    protected void onSizeChanged(int w, int h, int oldw, int oldh) {
-
-        super.onSizeChanged(w, h, oldw, oldh);
-
-        int bw = 1;
-        int bh = 1;
-
-        if (mm != null && mm.getInputHandler().getTouchController().getMainRect() != null) {
-            bw = mm.getInputHandler().getTouchController().getMainRect().width();
-            bh = mm.getInputHandler().getTouchController().getMainRect().height();
-        }
-
-        if (bw == 0) bw = 1;
-        if (bh == 0) bh = 1;
-
-        float desiredAspect = (float) bw / (float) bh;
-
-        int tmp = (int) ((float) w / desiredAspect);
-        if (tmp <= h) {
-            ax = 0;
-            ay = (h - tmp) / 2;
-            h = tmp;
-        } else {
-            tmp = (int) ((float) h * desiredAspect);
-            ay = 0;
-            ax = (w - tmp) / 2;
-            w = tmp;
-        }
-
-        dx = (float) w / (float) bw;
-        dy = (float) h / (float) bh;
-
-        if (mm == null || mm.getInputHandler() == null)
-            return;
-
-        mm.getInputHandler().getTouchController().setFixFactor(ax, ay, dx, dy);
-
-        updateImages();
-
-        //mm.getDialogHelper().setInfoMsg("w:"+w+"h:"+h);
-        //mm.showDialog(DialogHelper.DIALOG_INFO);
-    }
-
-    @Override
-    protected void onDraw(Canvas canvas) {
-
-        if (bmp != null)
-            super.onDraw(canvas);
-
-        if (mm == null) return;
-
-        ArrayList<InputValue> data = mm.getInputHandler().getTouchController().getAllInputData();
-
-        if (data == null) return;
-
-        for (int i = 0; i < data.size(); i++) {
-            InputValue v = data.get(i);
-            BitmapDrawable d = null;
-            canvas.getClipBounds(rclip);
-			boolean handled = mm.getInputHandler().getTouchController().isHandledTouchItem(v);
-			if(!handled) {continue;}
-            if (v.getType() == TouchController.TYPE_STICK_IMG && rclip.intersect(v.getRect())) {
-                 d = stick_images[mm.getInputHandler().getTouchController().getStick_state()];
-            } else if (v.getType() == TouchController.TYPE_ANALOG_RECT && rclip.intersect(v.getRect())) {
-                 mm.getInputHandler().getTouchStick().draw(canvas);
-            } else if (v.getType() == TouchController.TYPE_BUTTON_IMG && rclip.intersect(v.getRect())) {
-                 d = btns_images[v.getValue()][mm.getInputHandler().getTouchController().getBtnStates()[v.getValue()]];
-            }
-
-            if (d != null) {
-                //d.setBounds(v.getRect());
-                d.draw(canvas);
-            }
-        }
-
-        if (ControlCustomizer.isEnabled())
-            mm.getInputHandler().getControlCustomizer().draw(canvas);
-
-        if (Emulator.isDebug()) {
-            ArrayList<InputValue> ids = mm.getInputHandler().getTouchController().getAllInputData();
-            Paint p2 = new Paint();
-            p2.setARGB(255, 255, 255, 255);
-            p2.setStyle(Style.STROKE);
-
-            for (int i = 0; i < ids.size(); i++) {
-                InputValue v = ids.get(i);
-                Rect r = v.getRect();
-                if (r != null) {
-
-                    if (v.getType() == TouchController.TYPE_BUTTON_RECT)
-                        canvas.drawRect(r, p2);
-                    else if (mm.getPrefsHelper().getControllerType() == PrefsHelper.PREF_DIGITAL_DPAD && v.getType() == TouchController.TYPE_STICK_RECT)
-                        canvas.drawRect(r, p2);
-                    else if (mm.getPrefsHelper().getControllerType() != PrefsHelper.PREF_DIGITAL_DPAD && v.getType() == TouchController.TYPE_ANALOG_RECT)
-                        canvas.drawRect(r, p2);
-                }
-            }
-
-            p2.setTextSize(30);
-            if (mm.getInputHandler().getTiltSensor().isEnabled() && TiltSensor.str != null)
-                canvas.drawText(TiltSensor.str, 100, 150, p2);
-        }
-    }
+			// Draw tilt sensor debug info if enabled.
+			p2.setTextSize(30);
+			if (mm.getInputHandler().getTiltSensor().isEnabled() && TiltSensor.str != null) {
+				canvas.drawText(TiltSensor.str, 100, 150, p2);
+			}
+		}
+	}
 }
