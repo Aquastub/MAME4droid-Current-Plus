@@ -16,9 +16,18 @@
 
 ---
 
+## 🚀 Performance & Hardware
+
+While MAME is known for being demanding, this version includes modern optimizations for mobile hardware:
+
+* **arm64 DRC (Dynamic Recompiler)**: Recent versions now feature a dedicated **64-bit ARMv8 recompiler (DRC)**. This provides a massive performance boost for complex systems (like Killer Instinct or CPS-3), allowing them to run much faster than in older, legacy emulators.
+* **Requirements**: Despite these optimizations, a **high-end Android device** is still recommended for the most demanding 90s-era 3D arcade games to achieve full speed.
+
+---
+
 ## 🛠️ Recommended Setup (External Storage)
 
-For the best experience and to save internal storage, it is recommended to store your ROMs on external extorage using Android's **Scoped Storage** system.
+For the best experience and to save internal storage, it is recommended to store your ROMs on external storage using Android's **Scoped Storage** system.
 
 ### First-Time Installation Guide
 1.  **Prepare your external storage**: Create a folder named `MAME4droid` (or any name you prefer) on your SD card or internal memory.
