@@ -1,53 +1,53 @@
 # MAME4droid-Current
 
-MAME4droid (Current) is developed by David Valdeita (Seleuco) as a port of the MAME 0.283 emulator by MAMEDev and contributors. It emulates arcade games and systems like ZX Spectrum, Amstrad CPC, MSX etc. This version of MAME support over 40000 different ROMs.
+![License: GPL v2](https://img.shields.io/badge/License-GPL%20v2-blue.svg)
+![Platform: Android](https://img.shields.io/badge/Platform-Android-brightgreen.svg)
 
-* MAME4droid is an EMULATOR and DOES NOT INCLUDE ROMS OR COPYRIGHTED MATERIAL OF ANY KIND. 
+**MAME4droid (Current)** is a powerful Android port of the **MAME 0.284** emulator (by MAMEDev and contributors), developed by **David Valdeita (Seleuco)**. It supports over 40,000 different ROMs and emulates classic arcade systems along with home computers like ZX Spectrum, Amstrad CPC, and MSX.
 
-(NOTE: MAME4droid is not supported, nor does it have anything to do with Mame's team. Don't bother them with questions about MAME4droid)  
+---
 
-This version of MAME4droid was designed to be used with high-end Android devices because it is based on the latest PC MAME version which requires higher specifications than the older versions. 
+## ⚠️ Important Disclaimers
 
-Even with a high-end device, do not expect "modern" arcade games from the 90s and beyond to necessarily work at full speed or compatibility.   
+* **No ROMs Included**: MAME4droid is strictly an EMULATOR and DOES NOT INCLUDE ROMS or copyrighted material.
+* **Not Affiliated with MAMEDev**: This project is independent of the official MAME team.
+* **High-End Hardware Recommended**: Based on the latest PC MAME version, it requires high specifications. Modern games (90s+) may not run at full speed on all devices.
+* **Support**: Due to the massive library of titles, support for specific individual games cannot be provided.
 
-With over 40000 games and system supported, some games will run better than others; some games may not run at all. It is impossible to support such a vast number of titles, so please do not email me asking for support for a specific game. 
+---
 
-After installing, place your MAME-titled zipped ROMs in /storage/emulated/0/Android/data/com.seleuco.mame4d2024/files/roms folder (Read the help to see other possibilities for reading your ROMs). 
+## 🛠️ Recommended Setup (External Storage)
 
-This MAME4droid version uses only '0.283' romset. 
+For the best experience and to save internal storage, it is recommended to store your ROMs on external extorage using Android's **Scoped Storage** system.
 
-FEATURES 
-========
+### First-Time Installation Guide
+1.  **Prepare your external storage**: Create a folder named `MAME4droid` (or any name you prefer) on your SD card or internal memory.
+2.  **Initial Launch**: Open the app for the first time.
+3.  **Path Selection**: When asked "Where do you have stored or want to store your roms files?", select **EXTERNAL STORAGE**.
+4.  **Grant Permission**:
+    * The Android file picker will open. Navigate to your external storage, select the folder you created, and tap **"Use this folder"**.
+    * Tap **Allow** to give MAME4droid permission to access that directory.
+5.  **Romset Version**: Ensure you are using the **'0.284'** romset for compatibility.
 
-* Autorotate with individual settings for portrait and landscape orientation
-* Physical and touch Mouse support (autodetected)
-* Virtual and full Physical keyboard support (with Keys remapping) 
-* Plug and play support for most Bluetooth and USB Gamepads 
-* Touch lightgun with auto-detection option 
-* Touch Controller can be toggled on and off 
-* Image smoothing and effects (Overlay filters including scanlines, CRT, etc.) 
-* Digital or Analog touch selectable 
-* Animated touch stick or DPAD 
-* Customizable In-App button layout 
-* Tilt Sensor replacement for joystick movement 
-* Display 1 to 6 buttons on screen 
-* Options for video aspect ratio, scaling, rotate, etc. 
+*Note: If you already installed it, you can change the path in **Options > Settings > General > Change ROMs path**.*
 
-MAME LICENSE
-============
- 
-Copyright (C) 1997-2025  MAMEDev and contributors 
- 
-This program is free software; you can redistribute it and/or modify 
-it under the terms of the GNU General Public License as published by 
-the Free Software Foundation; either version 2 of the License, or 
-(at your option) any later version. 
- 
-This program is distributed in the hope that it will be useful, 
-but WITHOUT ANY WARRANTY; without even the implied warranty of 
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the 
-GNU General Public License for more details. 
- 
-You should have received a copy of the GNU General Public License along 
-with this program; if not, write to the Free Software Foundation, Inc., 
-51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+---
+
+## ✨ Features
+
+* **🎮 Controls**: Plug-and-play support for Bluetooth/USB gamepads, touch lightgun, and mouse support.
+* **📱 Interface**: Autorotation, customizable button layouts (1-6 buttons), and tilt sensor support.
+* **🎨 Visuals & Shaders**:
+    * **Shader Support**: This version includes advanced shader support for a more authentic retro look.
+    * **How to Enable**: Shaders must be manually activated. Go to **Options > Settings > Shaders** to select and enable your preferred effects.
+    * **Filters**: Includes overlay filters like scanlines and CRT effects.
+
+---
+
+## 📜 MAME License
+
+Copyright (C) 1997-2026 MAMEDev and contributors.
+
+This program is free software; you can redistribute it and/or modify it under the terms of the **GNU General Public License** as published by the Free Software Foundation; either version 2 of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.
