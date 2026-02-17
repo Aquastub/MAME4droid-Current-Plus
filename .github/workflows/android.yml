@@ -24,5 +24,4 @@ jobs:
   run: chmod +x android-MAME4droid/gradlew
 
     - name: Build with Gradle
-  working-directory: android-MAME4droid/app
-  run: ./gradlew build
+  run: android-MAME4droid/gradlew build
