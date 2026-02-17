@@ -21,6 +21,9 @@ jobs:
         cache: gradle
 
     - name: Grant execute permission for gradlew
-      run: chmod +x android-MAME4droid/gradlew
+  working-directory: android-MAME4droid
+  run: chmod +x gradlew
+
     - name: Build with Gradle
-      run: android-MAME4droid/gradlew build
+  working-directory: android-MAME4droid/app
+  run: ./gradlew build
